@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glucose Penguin</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #051221;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  canvas { display: block; }
+  #hud {
+    position: fixed;
+    left: 20px;
+    top: 18px;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 0 10px rgba(0,0,0,0.6);
+    user-select: none;
+    pointer-events: none;
+  }
+  #hud .value { font-size: 34px; font-weight: 300; letter-spacing: 1px; }
+  #hud .arrow { font-size: 26px; margin-left: 6px; }
+  #hud .meta { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+  #status {
+    position: fixed;
+    left: 20px;
+    top: 84px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    max-width: 260px;
+  }
+  #gear {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.8);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+  #gear:hover { background: rgba(255,255,255,0.2); }
+  #panel {
+    position: fixed;
+    top: 66px;
+    right: 18px;
+    width: 300px;
+    background: rgba(20,20,26,0.94);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px;
+    padding: 16px;
+    color: rgba(255,255,255,0.88);
+    z-index: 20;
+    display: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  #panel.open { display: block; }
+  #panel label { display: block; font-size: 12px; opacity: 0.65; margin-bottom: 6px; }
+  #panel input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.07);
+    color: #fff;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  #panel button {
+    width: 100%;
+    padding: 9px;
+    border-radius: 6px;
+    border: none;
+    background: #3a7ac0;
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #panel button:hover { background: #4a8ad0; }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div><span class="value" id="val">--</span><span class="arrow" id="arrow"></span></div>
+  <div class="meta" id="meta">connecting…</div>
+</div>
+<div id="status"></div>
+
+<div id="gear" title="Settings">⚙</div>
+<div id="panel">
+  <label>Nightscout URL</label>
+  <input id="urlInput" type="text" placeholder="https://your-name.northflank.app">
+  <button id="saveBtn">Save</button>
+</div>
+
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const hudVal = document.getElementById('val');
+  const hudArrow = document.getElementById('arrow');
+  const hudMeta = document.getElementById('meta');
+  const statusEl = document.getElementById('status');
+  const gear = document.getElementById('gear');
+  const panel = document.getElementById('panel');
+  const urlInput = document.getElementById('urlInput');
+  const saveBtn = document.getElementById('saveBtn');
+
+  let W = 0, H = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---- Nightscout URL handling ----
+  // Baked in so the page works for anyone who opens it, with no setup.
+  const DEFAULT_NS_URL = 'https://p01--nightscout--cqvfsjd8b54h.code.run';
+  let nsUrl = localStorage.getItem('glucoseArtNsUrl') || DEFAULT_NS_URL;
+  function openPanel() { urlInput.value = nsUrl; panel.classList.add('open'); }
+  function closePanel() { panel.classList.remove('open'); }
+  gear.addEventListener('click', () => panel.classList.contains('open') ? closePanel() : openPanel());
+  saveBtn.addEventListener('click', () => {
+    const v = urlInput.value.trim().replace(/\/+$/, '');
+    if (v) {
+      nsUrl = v;
+      localStorage.setItem('glucoseArtNsUrl', nsUrl);
+      closePanel();
+      fetchLatest();
+    }
+  });
+  if (!nsUrl) openPanel();
+
+  // ---- Glucose bands (mmol/L) ----
+  const LOW_DEEP  = 2.5;   // fully submerged, max depth
+  const LOW_EDGE  = 4.0;   // waterline
+  const HIGH_EDGE = 10.0;  // treeline, starts climbing
+  const HIGH_CEIL = 16.0;  // full altitude
+
+  const ARROW = {
+    DoubleUp: '⇈', SingleUp: '↑', FortyFiveUp: '↗', Flat: '→',
+    FortyFiveDown: '↘', SingleDown: '↓', DoubleDown: '⇊',
+    NOT_COMPUTABLE: '·', RATE_OUT_OF_RANGE: '·', NONE: '·'
+  };
+  const TREND_BIAS = {
+    DoubleUp: -1.6, SingleUp: -1.0, FortyFiveUp: -0.5, Flat: 0,
+    FortyFiveDown: 0.5, SingleDown: 1.0, DoubleDown: 1.6,
+  };
+
+  let rawMmol = 6.5;
+  let smoothMmol = 6.5;
+  let haveData = false;
+  let trendBias = 0;
+  let smoothBias = 0;
+  let turbulence = 0.2;
+
+  async function fetchLatest() {
+    if (!nsUrl) { statusEl.textContent = 'No Nightscout URL set — click the gear icon.'; return; }
+    if (!/^https?:\/\//i.test(nsUrl)) {
+      statusEl.textContent = 'URL must start with https:// — click the gear and add it.';
+      return;
+    }
+    try {
+      const res = await fetch(`${nsUrl}/api/v1/entries.json?count=12`);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      const entries = await res.json();
+      if (!entries || !entries.length) throw new Error('No entries returned');
+
+      const latest = entries[0];
+      const mgdl = latest.sgv;
+      rawMmol = mgdl / 18;
+      haveData = true;
+      const direction = latest.direction || 'Flat';
+      trendBias = TREND_BIAS[direction] ?? 0;
+      const ageMin = Math.round((Date.now() - latest.date) / 60000);
+
+      const values = entries.map(e => e.sgv).filter(v => typeof v === 'number');
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+      turbulence = Math.min(1.6, 0.2 + Math.sqrt(variance) / 22);
+
+      hudVal.textContent = rawMmol.toFixed(1);
+      hudArrow.textContent = ARROW[direction] || '';
+      hudMeta.textContent = ageMin <= 1 ? 'just now' : `${ageMin} min ago`;
+      statusEl.textContent = '';
+    } catch (err) {
+      statusEl.textContent = 'Nightscout error: ' + (err && err.message ? err.message : String(err));
+      console.error('[glucose-art] fetch failed:', err);
+    }
+  }
+  fetchLatest();
+  setInterval(fetchLatest, 60000);
+
+  // ---- vertical mapping ----
+  const GROUND_FRAC = 0.62;
+  const SKY_TOP_FRAC = 0.10;
+  const DEEP_FRAC = 0.92;
+
+  function yFracForMmol(mmol) {
+    if (mmol <= LOW_EDGE) {
+      const t = Math.max(0, Math.min(1, (LOW_EDGE - mmol) / (LOW_EDGE - LOW_DEEP)));
+      return GROUND_FRAC + t * (DEEP_FRAC - GROUND_FRAC);
+    } else if (mmol < HIGH_EDGE) {
+      return GROUND_FRAC;
+    } else {
+      const t = Math.max(0, Math.min(1, (mmol - HIGH_EDGE) / (HIGH_CEIL - HIGH_EDGE)));
+      return GROUND_FRAC - t * (GROUND_FRAC - SKY_TOP_FRAC);
+    }
+  }
+
+  // ---- ambient decoration ----
+  const clouds = Array.from({length: 5}, (_, i) => ({
+    x: Math.random(), y: 0.08 + Math.random() * 0.35,
+    scale: 0.7 + Math.random() * 0.9, speed: 0.004 + Math.random() * 0.006
+  }));
+  const fish = Array.from({length: 4}, (_, i) => ({
+    x: Math.random(), y: 0.72 + Math.random() * 0.22,
+    scale: 0.6 + Math.random() * 0.6, speed: (0.03 + Math.random() * 0.05) * (Math.random() < 0.5 ? 1 : -1)
+  }));
+  let ambientBubbles = [];
+  let penguinBubbles = [];
+
+  function drawCloud(x, y, scale) {
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 28 * scale, 16 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 24 * scale, y + 4 * scale, 20 * scale, 13 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(x - 24 * scale, y + 5 * scale, 18 * scale, 12 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawFish(x, y, scale, facing) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
+    ctx.fillStyle = 'rgba(255,200,120,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10 * scale, 5 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-9 * scale, 0);
+    ctx.lineTo(-16 * scale, -5 * scale);
+    ctx.lineTo(-16 * scale, 5 * scale);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawIceShelf(horizonY) {
+    ctx.fillStyle = '#eaf3f7';
+    ctx.beginPath();
+    ctx.moveTo(0, horizonY + 26);
+    ctx.lineTo(0, horizonY);
+    ctx.quadraticCurveTo(W * 0.15, horizonY - 10, W * 0.3, horizonY);
+    ctx.quadraticCurveTo(W * 0.45, horizonY + 8, W * 0.6, horizonY - 4);
+    ctx.quadraticCurveTo(W * 0.78, horizonY - 14, W, horizonY - 2);
+    ctx.lineTo(W, horizonY + 26);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawPenguin(x, y, mode, t) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(smoothBias * 0.04);
+
+    let wingBase = -0.15, wingFlap = 0, bob = 0, footSpread = 1;
+    if (mode === 'walk') {
+      bob = Math.abs(Math.sin(t * 4)) * 3;
+      wingFlap = Math.sin(t * 2.5) * 0.08;
+      wingBase = -0.1;
+    } else if (mode === 'fly') {
+      wingBase = -0.5;
+      wingFlap = Math.sin(t * (9 + turbulence * 3)) * 0.9;
+      footSpread = 0.4;
+    } else { // swim
+      wingBase = -0.9;
+      wingFlap = Math.sin(t * (5 + turbulence * 2)) * 0.55;
+      footSpread = 0.6;
+      bob = Math.sin(t * 3) * 4;
+    }
+    ctx.translate(0, -bob);
+
+    // back wing
+    ctx.save();
+    ctx.translate(-16, -4);
+    ctx.rotate(wingBase - wingFlap);
+    ctx.fillStyle = '#12161c';
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 6, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // body
+    ctx.fillStyle = '#161b22';
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 22, 30, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // belly
+    ctx.fillStyle = '#f4f7f9';
+    ctx.beginPath();
+    ctx.ellipse(1, 10, 14, 21, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // feet
+    if (mode !== 'fly') {
+      ctx.fillStyle = '#e8973a';
+      ctx.beginPath();
+      ctx.ellipse(-9 * footSpread, 33, 7, 4, -0.2, 0, Math.PI * 2);
+      ctx.ellipse(9 * footSpread, 33, 7, 4, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // head
+    ctx.fillStyle = '#161b22';
+    ctx.beginPath();
+    ctx.ellipse(0, -26, 15, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // face patch
+    ctx.fillStyle = '#f4f7f9';
+    ctx.beginPath();
+    ctx.ellipse(0, -23, 9, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // eyes
+    ctx.fillStyle = '#0a0c0f';
+    ctx.beginPath();
+    ctx.arc(-5, -27, 1.8, 0, Math.PI * 2);
+    ctx.arc(5, -27, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // beak
+    ctx.fillStyle = '#e8973a';
+    ctx.beginPath();
+    ctx.moveTo(-5, -21);
+    ctx.lineTo(5, -21);
+    ctx.lineTo(0, -15);
+    ctx.closePath();
+    ctx.fill();
+
+    // front wing
+    ctx.save();
+    ctx.translate(16, -4);
+    ctx.rotate(-wingBase + wingFlap);
+    ctx.fillStyle = '#1c222b';
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 6, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+
+    // bubbles trailing from swimming
+    if (mode === 'swim' && Math.random() < 0.4) {
+      penguinBubbles.push({ x: x + (Math.random() - 0.5) * 20, y: y + 20, r: 1 + Math.random() * 2, alpha: 0.6 });
+    }
+  }
+
+  let lastTime = performance.now();
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+    const t = now * 0.001;
+
+    smoothMmol += (rawMmol - smoothMmol) * 0.01;
+    smoothBias += (trendBias - smoothBias) * 0.02;
+
+    const horizonY = H * GROUND_FRAC;
+    const yFrac = yFracForMmol(smoothMmol);
+    const penguinY = yFrac * H;
+    let mode = 'walk';
+    if (penguinY > horizonY + 6) mode = 'swim';
+    else if (penguinY < horizonY - 6) mode = 'fly';
+
+    // sky
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+    skyGrad.addColorStop(0, '#4a5fb0');
+    skyGrad.addColorStop(1, '#a6dcf2');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, horizonY + 1);
+
+    clouds.forEach(c => {
+      c.x = (c.x + c.speed * dt) % 1.2;
+      drawCloud((c.x - 0.1) * W, c.y * horizonY, c.scale);
+    });
+
+    // ocean
+    const seaGrad = ctx.createLinearGradient(0, horizonY, 0, H);
+    seaGrad.addColorStop(0, '#2a7ea8');
+    seaGrad.addColorStop(1, '#031428');
+    ctx.fillStyle = seaGrad;
+    ctx.fillRect(0, horizonY, W, H - horizonY);
+
+    fish.forEach(f => {
+      f.x += (f.speed * dt) / 3;
+      if (f.x > 1.1) f.x = -0.1; if (f.x < -0.1) f.x = 1.1;
+      drawFish(f.x * W, horizonY + (f.y - GROUND_FRAC) / (1 - GROUND_FRAC) * (H - horizonY) * 0.4 + (H - horizonY) * 0.15, f.scale, f.speed > 0 ? 1 : -1);
+    });
+
+    if (Math.random() < 0.03) {
+      ambientBubbles.push({ x: Math.random() * W, y: H - 4, r: 1 + Math.random() * 2, alpha: 0.5 });
+    }
+    ambientBubbles.forEach(b => { b.y -= 18 * dt; b.alpha -= 0.15 * dt; });
+    ambientBubbles = ambientBubbles.filter(b => b.alpha > 0 && b.y > horizonY);
+    penguinBubbles.forEach(b => { b.y -= 26 * dt; b.alpha -= 0.4 * dt; b.x += Math.sin(b.y * 0.1) * 0.2; });
+    penguinBubbles = penguinBubbles.filter(b => b.alpha > 0 && b.y > horizonY);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    [...ambientBubbles, ...penguinBubbles].forEach(b => {
+      ctx.globalAlpha = Math.max(0, b.alpha);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // ice shelf horizon
+    drawIceShelf(horizonY);
+
+    // penguin
+    drawPenguin(W * 0.42, penguinY, mode, t);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
