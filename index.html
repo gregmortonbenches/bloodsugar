@@ -330,6 +330,7 @@
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(1.25, 1.25);
+    ctx.translate(0, -40); // re-anchor to the feet, not the torso center
 
     let wingFlap = 0, bob = 0, footSpread = 1, waddle = 0;
     if (mode === 'walk') {
