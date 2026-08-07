@@ -328,34 +328,35 @@
   }
 
   function drawPenguin(x, y, mode, t) {
-    let wingFlap = 0, bob = 0, footSpread = 1, tilt = 0, driftX = 0, wingRest = 0.12, flapSpeed = 4;
+    let wingFlap = 0, stride = 0, bob = 0, tilt = 0, driftX = 0, wingRest = 0.5, flapSpeed = 4, facing = 1;
 
     if (mode === 'walk') {
-      bob = Math.abs(Math.sin(t * 4)) * 3;
-      tilt = Math.sin(t * 4) * 0.09;
-      wingFlap = Math.sin(t * 4 + Math.PI) * 0.12;
+      stride = Math.sin(t * 5);
+      bob = Math.abs(Math.cos(t * 5)) * 3;
+      wingFlap = Math.sin(t * 5) * 0.15;
+      wingRest = 0.35; // flipper hangs close to the body
     } else if (mode === 'fly') {
       flapSpeed = 8 + turbulence * 4;
-      wingRest = 0.55; // wings spread out to the sides, not hanging
-      wingFlap = Math.sin(t * flapSpeed) * 1.0;
-      footSpread = 0.35;
+      wingRest = 1.0; // wing swept up and back like an outstretched flap
+      wingFlap = Math.sin(t * flapSpeed) * 0.8;
       bob = Math.sin(t * flapSpeed) * 5; // lift on each downstroke
       driftX = Math.sin(t * 0.7) * 22; // soaring drift, not pinned in place
-      tilt = -0.4 + Math.sin(t * flapSpeed * 0.5) * 0.08;
+      tilt = -0.35 + Math.sin(t * flapSpeed * 0.5) * 0.06;
+      facing = Math.cos(t * 0.7) >= 0 ? 1 : -1; // face the direction it's soaring
     } else { // swim
       flapSpeed = 4 + turbulence * 2.5;
-      wingRest = 0.3;
-      wingFlap = Math.sin(t * flapSpeed) * 0.65;
-      footSpread = 0.55;
+      wingRest = 0.6;
+      wingFlap = Math.sin(t * flapSpeed) * 0.9; // flipper strokes like an underwater wingbeat
       bob = Math.sin(t * flapSpeed * 0.6) * 6;
       driftX = Math.sin(t * 0.9) * 16; // gliding weave through the water
-      tilt = -1.3 + Math.sin(t * flapSpeed * 0.6) * 0.12; // mostly horizontal, torpedo-style
+      tilt = -1.4 + Math.sin(t * flapSpeed * 0.6) * 0.1; // torpedo-horizontal, side-on now reads correctly
+      facing = Math.cos(t * 0.9) >= 0 ? 1 : -1;
     }
 
     ctx.save();
     ctx.translate(x + driftX, y);
-    ctx.scale(1.25, 1.25);
-    ctx.translate(0, -40); // re-anchor to the feet, not the torso center
+    ctx.scale(1.25 * facing, 1.25);
+    ctx.translate(0, -36); // re-anchor to the feet, not the torso center
     ctx.rotate(tilt + smoothBias * 0.04);
     ctx.translate(0, -bob);
 
@@ -363,100 +364,109 @@
     const shadowAlpha = mode === 'walk' ? 0.22 : 0.08;
     ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
     ctx.beginPath();
-    ctx.ellipse(0, 38, 20, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(-2, 36, 18, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // back flipper - hangs down past the hip when walking, spreads out when flying/swimming
+    // back leg (trails behind mid-stride)
+    if (mode !== 'fly') {
+      const backX = -6 - stride * 7, backLift = Math.max(0, -stride) * 5;
+      ctx.fillStyle = '#f0972a';
+      ctx.beginPath();
+      ctx.ellipse(backX - 6, 36 - backLift, 9, 4.5, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // flipper - hangs near the body walking, sweeps up/back flying, strokes like a wing swimming
     ctx.save();
-    ctx.translate(-21, -2);
+    ctx.translate(-2, -6);
     ctx.rotate(-wingRest - wingFlap);
     ctx.fillStyle = '#12161c';
     ctx.beginPath();
-    ctx.ellipse(0, 15, 5.5, 19, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 14, 6, 18, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = 'rgba(120,140,160,0.35)';
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
 
-    // single merged body+head silhouette (no neck line, like claymation Pingu)
+    // small tail stub poking out the back
     ctx.fillStyle = '#181e26';
     ctx.beginPath();
-    ctx.moveTo(-24, 8);
-    ctx.bezierCurveTo(-24, 30, -14, 40, 0, 40);
-    ctx.bezierCurveTo(14, 40, 24, 30, 24, 8);
-    ctx.bezierCurveTo(24, -10, 20, -24, 15, -32);
-    ctx.bezierCurveTo(10, -40, -10, -40, -15, -32);
-    ctx.bezierCurveTo(-20, -24, -24, -10, -24, 8);
+    ctx.moveTo(-14, 28);
+    ctx.lineTo(-24, 33);
+    ctx.lineTo(-13, 20);
     ctx.closePath();
     ctx.fill();
 
-    // soft clay highlight (upper-left sheen)
-    const sheen = ctx.createRadialGradient(-10, -22, 2, -10, -22, 26);
+    // main body+head silhouette, side-on: rounded back, chest bulge at front, head leaning forward
+    ctx.fillStyle = '#181e26';
+    ctx.beginPath();
+    ctx.moveTo(-14, 34);
+    ctx.bezierCurveTo(-21, 28, -21, -2, -14, -18);
+    ctx.bezierCurveTo(-10, -30, 0, -36, 9, -34);
+    ctx.bezierCurveTo(15, -32, 17, -25, 14, -19);
+    ctx.bezierCurveTo(21, -12, 21, 12, 16, 25);
+    ctx.bezierCurveTo(13, 33, 5, 36, -3, 36);
+    ctx.bezierCurveTo(-8, 36, -12, 35, -14, 34);
+    ctx.closePath();
+    ctx.fill();
+
+    // soft clay highlight
+    const sheen = ctx.createRadialGradient(-6, -20, 2, -6, -20, 28);
     sheen.addColorStop(0, 'rgba(255,255,255,0.10)');
     sheen.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = sheen;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 26, 40, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 22, 38, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // thin yellow flank stripe, tucked between the body edge and the belly
+    // thin yellow flank stripe along the chest edge, where black meets white
     ctx.fillStyle = '#f2c94c';
     ctx.beginPath();
-    ctx.ellipse(-17, 12, 3, 16, 0.05, 0, Math.PI * 2);
-    ctx.ellipse(17, 12, 3, 16, -0.05, 0, Math.PI * 2);
+    ctx.ellipse(-2, 10, 3, 20, 0.15, 0, Math.PI * 2);
     ctx.fill();
 
-    // belly - big and round, centered low
+    // belly - white patch along the front (chest) side
     ctx.fillStyle = '#f4f7f9';
     ctx.beginPath();
-    ctx.ellipse(0, 14, 13, 20, 0, 0, Math.PI * 2);
+    ctx.moveTo(3, -8);
+    ctx.bezierCurveTo(11, -4, 12, 12, 10, 24);
+    ctx.bezierCurveTo(8, 31, 1, 34, -5, 32);
+    ctx.bezierCurveTo(-3, 20, -3, 2, 3, -8);
+    ctx.closePath();
     ctx.fill();
 
-    // feet - flat orange paddles
+    // front leg (planted / leading mid-stride)
     if (mode !== 'fly') {
+      const frontX = 4 + stride * 7, frontLift = Math.max(0, stride) * 5;
       ctx.fillStyle = '#f0972a';
       ctx.beginPath();
-      ctx.ellipse(-11 * footSpread, 40, 9, 4.5, -0.1, 0, Math.PI * 2);
-      ctx.ellipse(11 * footSpread, 40, 9, 4.5, 0.1, 0, Math.PI * 2);
+      ctx.ellipse(frontX + 6, 36 - frontLift, 9, 4.5, -0.1, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // eyes - big white circles with black pupils, Pingu-style
+    // eye - single, profile-facing forward, big white with black pupil
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(-6.5, -28, 4.5, 0, Math.PI * 2);
-    ctx.arc(6.5, -28, 4.5, 0, Math.PI * 2);
+    ctx.arc(9, -27, 4.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#0a0c0f';
     ctx.beginPath();
-    ctx.arc(-5.5, -27, 2.3, 0, Math.PI * 2);
-    ctx.arc(7.5, -27, 2.3, 0, Math.PI * 2);
+    ctx.arc(10.5, -26, 2.3, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.beginPath();
-    ctx.arc(-4.7, -28, 0.7, 0, Math.PI * 2);
-    ctx.arc(8.3, -28, 0.7, 0, Math.PI * 2);
+    ctx.arc(11.5, -27.5, 0.7, 0, Math.PI * 2);
     ctx.fill();
 
-    // beak - big red-orange oval, Pingu-style
+    // beak - profile wedge pointing forward
     ctx.fillStyle = '#e8432a';
     ctx.beginPath();
-    ctx.ellipse(0, -18, 7.5, 6, 0, 0, Math.PI * 2);
+    ctx.moveTo(13, -24);
+    ctx.lineTo(25, -19);
+    ctx.lineTo(13, -15);
+    ctx.closePath();
     ctx.fill();
-
-    // front flipper - hangs down past the hip when walking, spreads out when flying/swimming
-    ctx.save();
-    ctx.translate(21, -2);
-    ctx.rotate(wingRest + wingFlap);
-    ctx.fillStyle = '#1a1f27';
-    ctx.beginPath();
-    ctx.ellipse(0, 15, 5.5, 19, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(140,160,180,0.4)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.restore();
 
     ctx.restore();
 
