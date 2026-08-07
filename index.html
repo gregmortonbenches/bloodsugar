@@ -243,30 +243,31 @@
   }));
   let ambientBubbles = [];
   let penguinBubbles = [];
+  const snow = Array.from({length: 40}, () => ({
+    x: Math.random(), y: Math.random(),
+    r: 1 + Math.random() * 2, drift: (Math.random() - 0.5) * 0.02,
+    speed: 0.02 + Math.random() * 0.03
+  }));
 
   function drawIceberg(x, baseY, scale, jag) {
-    const w = 70 * scale, h = 90 * scale;
+    // soft, lumpy glacier mound rather than a sharp mountain peak
+    const w = 75 * scale, h = 60 * scale * (0.8 + 0.3 * Math.sin(jag));
     ctx.save();
     ctx.translate(x, baseY);
     ctx.fillStyle = '#eef7fb';
     ctx.beginPath();
     ctx.moveTo(-w * 0.5, 0);
-    ctx.lineTo(-w * 0.32, -h * 0.55);
-    ctx.lineTo(-w * 0.1, -h * (0.7 + 0.15 * Math.sin(jag)));
-    ctx.lineTo(w * 0.05, -h);
-    ctx.lineTo(w * 0.28, -h * 0.6);
-    ctx.lineTo(w * 0.5, -h * 0.15);
-    ctx.lineTo(w * 0.5, 0);
+    ctx.bezierCurveTo(-w * 0.5, -h * 0.5, -w * 0.32, -h * 0.7, -w * 0.15, -h * 0.6);
+    ctx.bezierCurveTo(-w * 0.05, -h * 0.95, w * 0.12, -h, w * 0.2, -h * 0.72);
+    ctx.bezierCurveTo(w * 0.35, -h * 0.8, w * 0.5, -h * 0.5, w * 0.5, 0);
     ctx.closePath();
     ctx.fill();
     // shadow facet for a bit of dimension
-    ctx.fillStyle = 'rgba(150,190,215,0.35)';
+    ctx.fillStyle = 'rgba(150,190,215,0.3)';
     ctx.beginPath();
-    ctx.moveTo(w * 0.05, -h);
-    ctx.lineTo(w * 0.28, -h * 0.6);
-    ctx.lineTo(w * 0.5, -h * 0.15);
-    ctx.lineTo(w * 0.5, 0);
-    ctx.lineTo(w * 0.12, 0);
+    ctx.moveTo(w * 0.2, -h * 0.72);
+    ctx.bezierCurveTo(w * 0.35, -h * 0.8, w * 0.5, -h * 0.5, w * 0.5, 0);
+    ctx.lineTo(w * 0.1, 0);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -360,10 +361,13 @@
     ctx.save();
     ctx.translate(-21, -2);
     ctx.rotate(-0.12 - wingFlap);
-    ctx.fillStyle = '#2e3a48';
+    ctx.fillStyle = '#12161c';
     ctx.beginPath();
-    ctx.ellipse(0, 15, 6.5, 20, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 15, 5.5, 19, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(120,140,160,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.restore();
 
     // single merged body+head silhouette (no neck line, like claymation Pingu)
@@ -436,10 +440,13 @@
     ctx.save();
     ctx.translate(21, -2);
     ctx.rotate(0.12 + wingFlap);
-    ctx.fillStyle = '#333f4d';
+    ctx.fillStyle = '#1a1f27';
     ctx.beginPath();
-    ctx.ellipse(0, 15, 6.5, 20, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 15, 5.5, 19, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(140,160,180,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.restore();
 
     ctx.restore();
@@ -516,6 +523,19 @@
 
     // penguin
     drawPenguin(W * 0.42, penguinY, mode, t);
+
+    // gentle drifting snow, in front of everything for a light foreground dusting
+    snow.forEach(s => {
+      s.y += s.speed * dt;
+      s.x += s.drift * dt;
+      if (s.y > 1) { s.y = -0.02; s.x = Math.random(); }
+    });
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    snow.forEach(s => {
+      ctx.beginPath();
+      ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
     requestAnimationFrame(frame);
   }
