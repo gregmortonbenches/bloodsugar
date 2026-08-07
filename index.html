@@ -367,28 +367,6 @@
     ctx.ellipse(-2, 36, 18, 5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // back leg (trails behind mid-stride)
-    if (mode !== 'fly') {
-      const backX = -6 - stride * 7, backLift = Math.max(0, -stride) * 5;
-      ctx.fillStyle = '#f0972a';
-      ctx.beginPath();
-      ctx.ellipse(backX - 6, 36 - backLift, 9, 4.5, 0.1, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // flipper - hangs near the body walking, sweeps up/back flying, strokes like a wing swimming
-    ctx.save();
-    ctx.translate(-2, -6);
-    ctx.rotate(-wingRest - wingFlap);
-    ctx.fillStyle = '#12161c';
-    ctx.beginPath();
-    ctx.ellipse(0, 14, 6, 18, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(120,140,160,0.35)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.restore();
-
     // small tail stub poking out the back
     ctx.fillStyle = '#181e26';
     ctx.beginPath();
@@ -436,6 +414,15 @@
     ctx.closePath();
     ctx.fill();
 
+    // back leg (trails behind mid-stride) - drawn after the body so it isn't painted over
+    if (mode !== 'fly') {
+      const backX = -6 - stride * 7, backLift = Math.max(0, -stride) * 5;
+      ctx.fillStyle = '#f0972a';
+      ctx.beginPath();
+      ctx.ellipse(backX - 6, 36 - backLift, 9, 4.5, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // front leg (planted / leading mid-stride)
     if (mode !== 'fly') {
       const frontX = 4 + stride * 7, frontLift = Math.max(0, stride) * 5;
@@ -444,6 +431,20 @@
       ctx.ellipse(frontX + 6, 36 - frontLift, 9, 4.5, -0.1, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // flipper - hangs near the body walking, sweeps up/back flying, strokes like a wing swimming
+    // drawn after the body so it's visible as a limb, not painted over by the torso fill
+    ctx.save();
+    ctx.translate(-2, -6);
+    ctx.rotate(-wingRest - wingFlap);
+    ctx.fillStyle = '#12161c';
+    ctx.beginPath();
+    ctx.ellipse(0, 14, 6, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120,140,160,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
 
     // eye - single, profile-facing forward, big white with black pupil
     ctx.fillStyle = '#ffffff';
