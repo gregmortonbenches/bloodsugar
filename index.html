@@ -156,10 +156,10 @@
   if (!nsUrl) openPanel();
 
   // ---- Glucose bands (mmol/L) ----
-  const LOW_DEEP  = 2.5;   // fully submerged, max depth
-  const LOW_EDGE  = 4.0;   // waterline
-  const HIGH_EDGE = 10.0;  // treeline, starts climbing
-  const HIGH_CEIL = 16.0;  // full altitude
+  const LOW_DEEP  = 3.0;   // fully submerged, max depth
+  const LOW_EDGE  = 6.0;   // waterline - bottom of target range
+  const HIGH_EDGE = 8.0;   // treeline - top of target range, starts climbing
+  const HIGH_CEIL = 14.0;  // full altitude
 
   const ARROW = {
     DoubleUp: '⇈', SingleUp: '↑', FortyFiveUp: '↗', Flat: '→',
@@ -286,91 +286,103 @@
   function drawPenguin(x, y, mode, t) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(smoothBias * 0.04);
 
-    let wingBase = -0.15, wingFlap = 0, bob = 0, footSpread = 1;
+    let wingFlap = 0, bob = 0, footSpread = 1, waddle = 0;
     if (mode === 'walk') {
       bob = Math.abs(Math.sin(t * 4)) * 3;
-      wingFlap = Math.sin(t * 2.5) * 0.08;
-      wingBase = -0.1;
+      waddle = Math.sin(t * 4) * 0.09;
+      wingFlap = Math.sin(t * 4 + Math.PI) * 0.12;
     } else if (mode === 'fly') {
-      wingBase = -0.5;
-      wingFlap = Math.sin(t * (9 + turbulence * 3)) * 0.9;
+      wingFlap = Math.sin(t * (9 + turbulence * 3)) * 0.7;
       footSpread = 0.4;
     } else { // swim
-      wingBase = -0.9;
-      wingFlap = Math.sin(t * (5 + turbulence * 2)) * 0.55;
+      wingFlap = Math.sin(t * (5 + turbulence * 2)) * 0.5;
       footSpread = 0.6;
       bob = Math.sin(t * 3) * 4;
+      waddle = Math.sin(t * 3) * 0.06;
     }
+    ctx.rotate(smoothBias * 0.04 + waddle);
     ctx.translate(0, -bob);
 
-    // back wing
-    ctx.save();
-    ctx.translate(-16, -4);
-    ctx.rotate(wingBase - wingFlap);
-    ctx.fillStyle = '#12161c';
+    // soft grounded shadow (claymation sits heavy) - fades out when airborne/swimming
+    const shadowAlpha = mode === 'walk' ? 0.22 : 0.08;
+    ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
     ctx.beginPath();
-    ctx.ellipse(0, 12, 6, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 38, 20, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // back flipper - short and stubby, Pingu-style
+    ctx.save();
+    ctx.translate(-18, 2);
+    ctx.rotate(-0.3 - wingFlap);
+    ctx.fillStyle = '#10141a';
+    ctx.beginPath();
+    ctx.ellipse(0, 8, 6, 13, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    // body
-    ctx.fillStyle = '#161b22';
+    // single merged body+head silhouette (no neck line, like claymation Pingu)
+    ctx.fillStyle = '#181e26';
     ctx.beginPath();
-    ctx.ellipse(0, 4, 22, 30, 0, 0, Math.PI * 2);
+    ctx.moveTo(-24, 8);
+    ctx.bezierCurveTo(-24, 30, -14, 40, 0, 40);
+    ctx.bezierCurveTo(14, 40, 24, 30, 24, 8);
+    ctx.bezierCurveTo(24, -10, 20, -24, 15, -32);
+    ctx.bezierCurveTo(10, -40, -10, -40, -15, -32);
+    ctx.bezierCurveTo(-20, -24, -24, -10, -24, 8);
+    ctx.closePath();
     ctx.fill();
 
-    // belly
+    // soft clay highlight (upper-left sheen)
+    const sheen = ctx.createRadialGradient(-10, -22, 2, -10, -22, 26);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.10)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 26, 40, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // belly - big and round, centered low
     ctx.fillStyle = '#f4f7f9';
     ctx.beginPath();
-    ctx.ellipse(1, 10, 14, 21, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 14, 13, 20, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // feet
     if (mode !== 'fly') {
       ctx.fillStyle = '#e8973a';
       ctx.beginPath();
-      ctx.ellipse(-9 * footSpread, 33, 7, 4, -0.2, 0, Math.PI * 2);
-      ctx.ellipse(9 * footSpread, 33, 7, 4, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(-10 * footSpread, 39, 8, 4, -0.15, 0, Math.PI * 2);
+      ctx.ellipse(10 * footSpread, 39, 8, 4, 0.15, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // head
-    ctx.fillStyle = '#161b22';
-    ctx.beginPath();
-    ctx.ellipse(0, -26, 15, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // face patch
-    ctx.fillStyle = '#f4f7f9';
-    ctx.beginPath();
-    ctx.ellipse(0, -23, 9, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // eyes
+    // eyes - simple round dots, no white face patch (Pingu's whole head is dark)
     ctx.fillStyle = '#0a0c0f';
     ctx.beginPath();
-    ctx.arc(-5, -27, 1.8, 0, Math.PI * 2);
-    ctx.arc(5, -27, 1.8, 0, Math.PI * 2);
+    ctx.arc(-6, -28, 2.4, 0, Math.PI * 2);
+    ctx.arc(6, -28, 2.4, 0, Math.PI * 2);
     ctx.fill();
-
-    // beak
-    ctx.fillStyle = '#e8973a';
+    // tiny highlight dots for that shiny clay-eye look
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath();
-    ctx.moveTo(-5, -21);
-    ctx.lineTo(5, -21);
-    ctx.lineTo(0, -15);
-    ctx.closePath();
+    ctx.arc(-5, -29, 0.7, 0, Math.PI * 2);
+    ctx.arc(7, -29, 0.7, 0, Math.PI * 2);
     ctx.fill();
 
-    // front wing
+    // beak - big rounded orange blob, Pingu-style
+    ctx.fillStyle = '#f0972a';
+    ctx.beginPath();
+    ctx.ellipse(0, -19, 6.5, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // front flipper
     ctx.save();
-    ctx.translate(16, -4);
-    ctx.rotate(-wingBase + wingFlap);
+    ctx.translate(18, 2);
+    ctx.rotate(0.3 + wingFlap);
     ctx.fillStyle = '#1c222b';
     ctx.beginPath();
-    ctx.ellipse(0, 12, 6, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 8, 6, 13, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
