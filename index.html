@@ -233,9 +233,9 @@
   }
 
   // ---- ambient decoration ----
-  const clouds = Array.from({length: 5}, (_, i) => ({
-    x: Math.random(), y: 0.08 + Math.random() * 0.35,
-    scale: 0.7 + Math.random() * 0.9, speed: 0.004 + Math.random() * 0.006
+  const icebergs = Array.from({length: 6}, (_, i) => ({
+    x: Math.random(), scale: 0.6 + Math.random() * 1.1,
+    speed: 0.0015 + Math.random() * 0.0025, jag: Math.random() * 100
   }));
   const fish = Array.from({length: 4}, (_, i) => ({
     x: Math.random(), y: 0.72 + Math.random() * 0.22,
@@ -244,13 +244,55 @@
   let ambientBubbles = [];
   let penguinBubbles = [];
 
-  function drawCloud(x, y, scale) {
-    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  function drawIceberg(x, baseY, scale, jag) {
+    const w = 70 * scale, h = 90 * scale;
+    ctx.save();
+    ctx.translate(x, baseY);
+    ctx.fillStyle = '#eef7fb';
     ctx.beginPath();
-    ctx.ellipse(x, y, 28 * scale, 16 * scale, 0, 0, Math.PI * 2);
-    ctx.ellipse(x + 24 * scale, y + 4 * scale, 20 * scale, 13 * scale, 0, 0, Math.PI * 2);
-    ctx.ellipse(x - 24 * scale, y + 5 * scale, 18 * scale, 12 * scale, 0, 0, Math.PI * 2);
+    ctx.moveTo(-w * 0.5, 0);
+    ctx.lineTo(-w * 0.32, -h * 0.55);
+    ctx.lineTo(-w * 0.1, -h * (0.7 + 0.15 * Math.sin(jag)));
+    ctx.lineTo(w * 0.05, -h);
+    ctx.lineTo(w * 0.28, -h * 0.6);
+    ctx.lineTo(w * 0.5, -h * 0.15);
+    ctx.lineTo(w * 0.5, 0);
+    ctx.closePath();
     ctx.fill();
+    // shadow facet for a bit of dimension
+    ctx.fillStyle = 'rgba(150,190,215,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(w * 0.05, -h);
+    ctx.lineTo(w * 0.28, -h * 0.6);
+    ctx.lineTo(w * 0.5, -h * 0.15);
+    ctx.lineTo(w * 0.5, 0);
+    ctx.lineTo(w * 0.12, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawIgloo(x, baseY, scale) {
+    ctx.save();
+    ctx.translate(x, baseY);
+    ctx.fillStyle = '#f2f8fb';
+    ctx.beginPath();
+    ctx.arc(0, 0, 46 * scale, Math.PI, 0);
+    ctx.fill();
+    // subtle brick-course lines
+    ctx.strokeStyle = 'rgba(160,195,215,0.5)';
+    ctx.lineWidth = 1.5 * scale;
+    for (let r = 14; r < 44; r += 12) {
+      ctx.beginPath();
+      ctx.arc(0, 0, r * scale, Math.PI, 0);
+      ctx.stroke();
+    }
+    // doorway tunnel
+    ctx.fillStyle = '#2a3540';
+    ctx.beginPath();
+    ctx.ellipse(24 * scale, -2 * scale, 11 * scale, 15 * scale, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   function drawFish(x, y, scale, facing) {
@@ -271,7 +313,7 @@
   }
 
   function drawIceShelf(horizonY) {
-    ctx.fillStyle = '#eaf3f7';
+    ctx.fillStyle = '#f5fafc';
     ctx.beginPath();
     ctx.moveTo(0, horizonY + 26);
     ctx.lineTo(0, horizonY);
@@ -311,13 +353,13 @@
     ctx.ellipse(0, 38, 20, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // back flipper - short and stubby, Pingu-style
+    // back flipper - hangs down past the hip, Pingu-style
     ctx.save();
-    ctx.translate(-18, 2);
-    ctx.rotate(-0.3 - wingFlap);
+    ctx.translate(-19, -2);
+    ctx.rotate(-0.12 - wingFlap);
     ctx.fillStyle = '#10141a';
     ctx.beginPath();
-    ctx.ellipse(0, 8, 6, 13, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 15, 6.5, 20, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
@@ -342,47 +384,58 @@
     ctx.ellipse(0, 0, 26, 40, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // thin yellow flank stripe where black meets white, Pingu-style
+    ctx.fillStyle = '#f2c94c';
+    ctx.beginPath();
+    ctx.ellipse(-12, 4, 5, 22, 0.15, 0, Math.PI * 2);
+    ctx.ellipse(12, 4, 5, 22, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
     // belly - big and round, centered low
     ctx.fillStyle = '#f4f7f9';
     ctx.beginPath();
     ctx.ellipse(0, 14, 13, 20, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // feet
+    // feet - flat orange paddles
     if (mode !== 'fly') {
-      ctx.fillStyle = '#e8973a';
+      ctx.fillStyle = '#f0972a';
       ctx.beginPath();
-      ctx.ellipse(-10 * footSpread, 39, 8, 4, -0.15, 0, Math.PI * 2);
-      ctx.ellipse(10 * footSpread, 39, 8, 4, 0.15, 0, Math.PI * 2);
+      ctx.ellipse(-11 * footSpread, 40, 9, 4.5, -0.1, 0, Math.PI * 2);
+      ctx.ellipse(11 * footSpread, 40, 9, 4.5, 0.1, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // eyes - simple round dots, no white face patch (Pingu's whole head is dark)
+    // eyes - big white circles with black pupils, Pingu-style
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-6.5, -28, 4.5, 0, Math.PI * 2);
+    ctx.arc(6.5, -28, 4.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = '#0a0c0f';
     ctx.beginPath();
-    ctx.arc(-6, -28, 2.4, 0, Math.PI * 2);
-    ctx.arc(6, -28, 2.4, 0, Math.PI * 2);
+    ctx.arc(-5.5, -27, 2.3, 0, Math.PI * 2);
+    ctx.arc(7.5, -27, 2.3, 0, Math.PI * 2);
     ctx.fill();
-    // tiny highlight dots for that shiny clay-eye look
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.beginPath();
-    ctx.arc(-5, -29, 0.7, 0, Math.PI * 2);
-    ctx.arc(7, -29, 0.7, 0, Math.PI * 2);
+    ctx.arc(-4.7, -28, 0.7, 0, Math.PI * 2);
+    ctx.arc(8.3, -28, 0.7, 0, Math.PI * 2);
     ctx.fill();
 
-    // beak - big rounded orange blob, Pingu-style
-    ctx.fillStyle = '#f0972a';
+    // beak - big red-orange oval, Pingu-style
+    ctx.fillStyle = '#e8432a';
     ctx.beginPath();
-    ctx.ellipse(0, -19, 6.5, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -18, 7.5, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // front flipper
+    // front flipper - hangs down past the hip
     ctx.save();
-    ctx.translate(18, 2);
-    ctx.rotate(0.3 + wingFlap);
+    ctx.translate(19, -2);
+    ctx.rotate(0.12 + wingFlap);
     ctx.fillStyle = '#1c222b';
     ctx.beginPath();
-    ctx.ellipse(0, 8, 6, 13, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 15, 6.5, 20, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
@@ -411,22 +464,24 @@
     if (penguinY > horizonY + 6) mode = 'swim';
     else if (penguinY < horizonY - 6) mode = 'fly';
 
-    // sky
+    // sky - pale Pingu-style powder blue, brightening toward the horizon
     const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
-    skyGrad.addColorStop(0, '#4a5fb0');
-    skyGrad.addColorStop(1, '#a6dcf2');
+    skyGrad.addColorStop(0, '#7ec4ec');
+    skyGrad.addColorStop(1, '#eaf6fb');
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, W, horizonY + 1);
 
-    clouds.forEach(c => {
-      c.x = (c.x + c.speed * dt) % 1.2;
-      drawCloud((c.x - 0.1) * W, c.y * horizonY, c.scale);
+    icebergs.forEach(b => {
+      b.x = (b.x + b.speed * dt) % 1.3;
+      drawIceberg((b.x - 0.15) * W, horizonY + 4, b.scale, b.jag);
     });
 
-    // ocean
+    drawIgloo(W * 0.14, horizonY + 2, 1.1);
+
+    // ocean - icy teal rather than deep navy, to stay in the pastel palette
     const seaGrad = ctx.createLinearGradient(0, horizonY, 0, H);
-    seaGrad.addColorStop(0, '#2a7ea8');
-    seaGrad.addColorStop(1, '#031428');
+    seaGrad.addColorStop(0, '#3ea8c4');
+    seaGrad.addColorStop(1, '#0a3550');
     ctx.fillStyle = seaGrad;
     ctx.fillRect(0, horizonY, W, H - horizonY);
 
