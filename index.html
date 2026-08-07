@@ -287,11 +287,12 @@
       ctx.arc(0, 0, r * scale, Math.PI, 0);
       ctx.stroke();
     }
-    // doorway tunnel
+    // doorway tunnel - fully above ground level, arched top
     ctx.fillStyle = '#2a3540';
     ctx.beginPath();
-    ctx.ellipse(24 * scale, -2 * scale, 11 * scale, 15 * scale, 0, Math.PI, Math.PI * 2);
+    ctx.ellipse(26 * scale, -14 * scale, 10 * scale, 14 * scale, 0, Math.PI, Math.PI * 2);
     ctx.fill();
+    ctx.fillRect(16 * scale, -14 * scale, 20 * scale, 14 * scale);
     ctx.restore();
   }
 
@@ -299,7 +300,7 @@
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(facing, 1);
-    ctx.fillStyle = 'rgba(255,200,120,0.55)';
+    ctx.fillStyle = 'rgba(255,210,130,0.85)';
     ctx.beginPath();
     ctx.ellipse(0, 0, 10 * scale, 5 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -328,6 +329,7 @@
   function drawPenguin(x, y, mode, t) {
     ctx.save();
     ctx.translate(x, y);
+    ctx.scale(1.25, 1.25);
 
     let wingFlap = 0, bob = 0, footSpread = 1, waddle = 0;
     if (mode === 'walk') {
@@ -355,9 +357,9 @@
 
     // back flipper - hangs down past the hip, Pingu-style
     ctx.save();
-    ctx.translate(-19, -2);
+    ctx.translate(-21, -2);
     ctx.rotate(-0.12 - wingFlap);
-    ctx.fillStyle = '#10141a';
+    ctx.fillStyle = '#2e3a48';
     ctx.beginPath();
     ctx.ellipse(0, 15, 6.5, 20, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -384,11 +386,11 @@
     ctx.ellipse(0, 0, 26, 40, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // thin yellow flank stripe where black meets white, Pingu-style
+    // thin yellow flank stripe, tucked between the body edge and the belly
     ctx.fillStyle = '#f2c94c';
     ctx.beginPath();
-    ctx.ellipse(-12, 4, 5, 22, 0.15, 0, Math.PI * 2);
-    ctx.ellipse(12, 4, 5, 22, -0.15, 0, Math.PI * 2);
+    ctx.ellipse(-17, 12, 3, 16, 0.05, 0, Math.PI * 2);
+    ctx.ellipse(17, 12, 3, 16, -0.05, 0, Math.PI * 2);
     ctx.fill();
 
     // belly - big and round, centered low
@@ -431,9 +433,9 @@
 
     // front flipper - hangs down past the hip
     ctx.save();
-    ctx.translate(19, -2);
+    ctx.translate(21, -2);
     ctx.rotate(0.12 + wingFlap);
-    ctx.fillStyle = '#1c222b';
+    ctx.fillStyle = '#333f4d';
     ctx.beginPath();
     ctx.ellipse(0, 15, 6.5, 20, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -476,8 +478,6 @@
       drawIceberg((b.x - 0.15) * W, horizonY + 4, b.scale, b.jag);
     });
 
-    drawIgloo(W * 0.14, horizonY + 2, 1.1);
-
     // ocean - icy teal rather than deep navy, to stay in the pastel palette
     const seaGrad = ctx.createLinearGradient(0, horizonY, 0, H);
     seaGrad.addColorStop(0, '#3ea8c4');
@@ -509,6 +509,9 @@
 
     // ice shelf horizon
     drawIceShelf(horizonY);
+
+    // igloo sits on top of the shelf, drawn after it so it doesn't get painted over
+    drawIgloo(W * 0.14, horizonY - 6, 1.2);
 
     // penguin
     drawPenguin(W * 0.42, penguinY, mode, t);
