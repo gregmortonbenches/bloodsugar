@@ -344,16 +344,12 @@
     const flyBob = Math.sin(t * flyFlapSpeed) * 5;
     const flyDriftX = Math.sin(t * 0.7) * 22;
     const flyTilt = -0.35 + Math.sin(t * flyFlapSpeed * 0.5) * 0.06;
-    // facing direction changes on its own slow cycle (~90s), independent of the faster
-    // side-to-side glide wobble above - otherwise it flips to face the other way on every wiggle
-    const flyFacing = Math.cos(t * 0.07) >= 0 ? 1 : -1;
 
     const swimFlapSpeed = 4 + turbulence * 2.5;
     const swimWingFlap = Math.sin(t * swimFlapSpeed) * 0.9;
     const swimBob = Math.sin(t * swimFlapSpeed * 0.6) * 6;
     const swimDriftX = Math.sin(t * 0.9) * 16;
     const swimTilt = 1.4 + Math.sin(t * swimFlapSpeed * 0.6) * 0.1;
-    const swimFacing = Math.cos(t * 0.08) >= 0 ? 1 : -1;
 
     const stride = walkW * walkStride;
     const bob = walkW * walkBob + flyW * flyBob + swimW * swimBob;
@@ -361,11 +357,10 @@
     const wingRest = walkW * walkWingRest + flyW * 1.0 + swimW * 0.6;
     const driftX = flyW * flyDriftX + swimW * swimDriftX;
     const tilt = flyW * flyTilt + swimW * swimTilt;
-    const facing = flyW * flyFacing + swimW * swimFacing + walkW * 1;
 
     ctx.save();
     ctx.translate(x + driftX, y);
-    ctx.scale(1.25 * facing, 1.25);
+    ctx.scale(1.25, 1.25); // always faces the same way now - no more flipping on the glide wobble
     ctx.translate(0, -36); // re-anchor to the feet, not the torso center
     ctx.rotate(tilt + smoothBias * 0.04);
     ctx.translate(0, -bob);
