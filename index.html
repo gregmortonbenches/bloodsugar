@@ -95,7 +95,7 @@
 </head>
 <body>
 
-<canvas id="c"></canvas>
+<canvas id="c" role="img" aria-label="Animated penguin whose altitude reflects the current blood glucose reading: swimming when low, walking in range, flying when high"></canvas>
 
 <div id="hud">
   <div><span class="value" id="val">--</span><span class="arrow" id="arrow"></span></div>
@@ -171,12 +171,17 @@
     FortyFiveDown: 0.5, SingleDown: 1.0, DoubleDown: 1.6,
   };
 
-  let rawMmol = 6.5;
-  let smoothMmol = 6.5;
-  let haveData = false;
+  // start from the last real reading we saw, if any, rather than a fake placeholder value
+  const cachedMmol = parseFloat(localStorage.getItem('glucoseArtLastMmol'));
+  let rawMmol = isFinite(cachedMmol) ? cachedMmol : 6.5;
+  let smoothMmol = rawMmol;
   let trendBias = 0;
   let smoothBias = 0;
   let turbulence = 0.2;
+
+  // reduced-motion: keep the glucose-driven position/behavior meaningful, just calmer
+  const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const MOTION_SCALE = REDUCED_MOTION ? 0.2 : 1;
 
   async function fetchLatest() {
     if (!nsUrl) { statusEl.textContent = 'No Nightscout URL set — click the gear icon.'; return; }
@@ -193,7 +198,7 @@
       const latest = entries[0];
       const mgdl = latest.sgv;
       rawMmol = mgdl / 18;
-      haveData = true;
+      localStorage.setItem('glucoseArtLastMmol', String(rawMmol));
       const direction = latest.direction || 'Flat';
       trendBias = TREND_BIAS[direction] ?? 0;
       const ageMin = Math.round((Date.now() - latest.date) / 60000);
@@ -244,10 +249,10 @@
   }));
   let ambientBubbles = [];
   let penguinBubbles = [];
-  const snow = Array.from({length: 40}, () => ({
+  const snow = Array.from({length: Math.round(40 * MOTION_SCALE) || 1}, () => ({
     x: Math.random(), y: Math.random(),
-    r: 1 + Math.random() * 2, drift: (Math.random() - 0.5) * 0.02,
-    speed: 0.02 + Math.random() * 0.03
+    r: 1 + Math.random() * 2, drift: (Math.random() - 0.5) * 0.02 * MOTION_SCALE,
+    speed: (0.02 + Math.random() * 0.03) * Math.max(0.3, MOTION_SCALE)
   }));
 
   function drawIceberg(x, baseY, scale, jag) {
@@ -351,11 +356,13 @@
     const swimDriftX = Math.sin(t * 0.9) * 16;
     const swimTilt = 1.4 + Math.sin(t * swimFlapSpeed * 0.6) * 0.1;
 
-    const stride = walkW * walkStride;
-    const bob = walkW * walkBob + flyW * flyBob + swimW * swimBob;
-    const wingFlap = walkW * walkWingFlap + flyW * flyWingFlap + swimW * swimWingFlap;
+    // MOTION_SCALE calms the incidental wiggle (bob/flap/drift) for reduced-motion users
+    // without touching tilt - tilt is the informational part (walk/fly/swim orientation)
+    const stride = walkW * walkStride * MOTION_SCALE;
+    const bob = (walkW * walkBob + flyW * flyBob + swimW * swimBob) * MOTION_SCALE;
+    const wingFlap = (walkW * walkWingFlap + flyW * flyWingFlap + swimW * swimWingFlap) * MOTION_SCALE;
     const wingRest = walkW * walkWingRest + flyW * 1.0 + swimW * 0.6;
-    const driftX = flyW * flyDriftX + swimW * swimDriftX;
+    const driftX = (flyW * flyDriftX + swimW * swimDriftX) * MOTION_SCALE;
     const tilt = flyW * flyTilt + swimW * swimTilt;
 
     ctx.save();
@@ -506,7 +513,7 @@
     const walkWeight = Math.max(0, 1 - swimBlend - flyBlend);
 
     // backdrop scrolls past to sell forward motion - fastest on foot, slower drifting in air/water
-    const scrollSpeed = walkWeight * 0.09 + swimBlend * 0.035 + flyBlend * 0.015;
+    const scrollSpeed = (walkWeight * 0.09 + swimBlend * 0.035 + flyBlend * 0.015) * MOTION_SCALE;
 
     // sky - pale Pingu-style powder blue, brightening toward the horizon
     const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
