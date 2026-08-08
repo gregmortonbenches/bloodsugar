@@ -183,6 +183,14 @@
   const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const MOTION_SCALE = REDUCED_MOTION ? 0.2 : 1;
 
+  // idle blink state
+  let nextBlinkAt = 2 + Math.random() * 4;
+  let blinkUntil = 0;
+
+  // flipper follow-through: eases toward its target angle instead of snapping to it each
+  // frame, so it trails behind the body's motion slightly (secondary motion / drag)
+  let flipperAngle = 0;
+
   async function fetchLatest() {
     if (!nsUrl) { statusEl.textContent = 'No Nightscout URL set — click the gear icon.'; return; }
     if (!/^https?:\/\//i.test(nsUrl)) {
@@ -333,7 +341,7 @@
     ctx.fill();
   }
 
-  function drawPenguin(x, y, swimBlend, flyBlend, t) {
+  function drawPenguin(x, y, swimBlend, flyBlend, t, dt) {
     // swimBlend/flyBlend ramp smoothly from 0 to 1 near the walk boundary instead of
     // snapping instantly, so the ~80 degree swim tilt doesn't pop in right at the ice edge.
     const walkW = Math.max(0, 1 - swimBlend - flyBlend);
@@ -365,10 +373,25 @@
     const driftX = (flyW * flyDriftX + swimW * swimDriftX) * MOTION_SCALE;
     const tilt = flyW * flyTilt + swimW * swimTilt;
 
+    // squash & stretch: a touch of stretch at the peak of each bob/flap, synced to whatever
+    // motion is currently driving the pose - cheap but does a lot for perceived liveliness
+    const stretch = 1 + Math.min(0.08, (Math.abs(bob) * 0.015 + Math.abs(wingFlap) * 0.03)) * MOTION_SCALE;
+    const squashX = 1 - (stretch - 1) * 0.6;
+
+    // flipper follow-through: eases toward its target angle over time instead of snapping,
+    // so it trails slightly behind the body - classic secondary-motion/drag animation principle
+    const flipperTarget = -wingRest - wingFlap;
+    flipperAngle += (flipperTarget - flipperAngle) * Math.min(1, dt * 9);
+
+    // idle blink, independent of glucose state - just a bit of life
+    if (t > nextBlinkAt) { blinkUntil = t + 0.12; nextBlinkAt = t + 3 + Math.random() * 4; }
+    const blinkScale = t < blinkUntil ? 0.08 : 1;
+
     ctx.save();
     ctx.translate(x + driftX, y);
     ctx.scale(1.25, 1.25); // always faces the same way now - no more flipping on the glide wobble
     ctx.translate(0, -36); // re-anchor to the feet, not the torso center
+    ctx.scale(squashX, stretch);
     ctx.rotate(tilt + smoothBias * 0.04);
     ctx.translate(0, -bob);
 
@@ -447,7 +470,7 @@
     // drawn after the body so it's visible as a limb, not painted over by the torso fill
     ctx.save();
     ctx.translate(-2, -6);
-    ctx.rotate(-wingRest - wingFlap);
+    ctx.rotate(flipperAngle);
     ctx.fillStyle = '#12161c';
     ctx.beginPath();
     ctx.ellipse(0, 14, 6, 18, 0, 0, Math.PI * 2);
@@ -457,19 +480,23 @@
     ctx.stroke();
     ctx.restore();
 
-    // eye - single, profile-facing forward, big white with black pupil
+    // eye - single, profile-facing forward, big white with black pupil, with an idle blink
+    ctx.save();
+    ctx.translate(9, -27);
+    ctx.scale(1, blinkScale);
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(9, -27, 4.5, 0, Math.PI * 2);
+    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#0a0c0f';
     ctx.beginPath();
-    ctx.arc(10.5, -26, 2.3, 0, Math.PI * 2);
+    ctx.arc(1.5, 1, 2.3, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.beginPath();
-    ctx.arc(11.5, -27.5, 0.7, 0, Math.PI * 2);
+    ctx.arc(2.5, -0.5, 0.7, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     // beak - profile wedge pointing forward
     ctx.fillStyle = '#e8432a';
@@ -565,7 +592,7 @@
     drawIgloo((iglooX - 0.15) * W, horizonY - 6, 1.2);
 
     // penguin
-    drawPenguin(W * 0.42, penguinY, swimBlend, flyBlend, t);
+    drawPenguin(W * 0.42, penguinY, swimBlend, flyBlend, t, dt);
 
     // gentle drifting snow, in front of everything for a light foreground dusting
     snow.forEach(s => {
