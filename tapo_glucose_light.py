@@ -9,7 +9,7 @@ Setup:
   export TAPO_EMAIL="your_tapo_account_email"
   export TAPO_PASSWORD="your_tapo_account_password"
 
-Edit BULB_ALIAS and NIGHTSCOUT_URL below, then run:
+Edit BULB_IP and NIGHTSCOUT_URL below, then run:
   python3 tapo_glucose_light.py
 """
 
@@ -22,7 +22,10 @@ import json
 from kasa import Discover, Module
 
 # ---- Config - edit these ----
-BULB_ALIAS = "Bedroom Bulb"  # exact name shown in the Tapo app
+# Connecting directly to a known IP (Tapo app -> bulb -> Device Info) instead of
+# broadcast discovery, since broadcast discovery can get silently blocked by
+# firewalls/VPNs/network isolation and is much less reliable.
+BULB_IP = "192.168.1.214"
 NIGHTSCOUT_URL = "https://p01--nightscout--cqvfsjd8b54h.code.run"
 POLL_SECONDS = 60
 
@@ -61,17 +64,13 @@ def fetch_latest_mmol():
 
 
 async def find_bulb():
-    print(f"Looking for '{BULB_ALIAS}' on the local network...")
-    devices = await Discover.discover(username=TAPO_EMAIL, password=TAPO_PASSWORD)
-    for dev in devices.values():
-        await dev.update()
-        if dev.alias == BULB_ALIAS:
-            print(f"Found it at {dev.host}")
-            return dev
-    raise RuntimeError(
-        f"No device named '{BULB_ALIAS}' found. "
-        f"Devices seen: {[d.alias for d in devices.values()]}"
+    print(f"Connecting to {BULB_IP}...")
+    dev = await Discover.discover_single(
+        BULB_IP, username=TAPO_EMAIL, password=TAPO_PASSWORD
     )
+    await dev.update()
+    print(f"Connected: {dev.alias}")
+    return dev
 
 
 async def main():
